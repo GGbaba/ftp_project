@@ -16,6 +16,7 @@
 int main(int argc , char *argv[])
 {
     int sock=-1;
+	int i=0;
     struct sockaddr_in server;
     int iResult=-1;
     char message[BUFLEN]="";
@@ -23,6 +24,8 @@ int main(int argc , char *argv[])
     unsigned long long nbdata=0, nbdatatotal=0;
     char* SERVER_ADDRESS=NULL;
     int PORT_NUMBER=0;
+	
+	char* FILE_PATH=NULL;
 
 	struct client_info{
 		int nb_sockets;
@@ -33,14 +36,17 @@ int main(int argc , char *argv[])
 	memset(&client_parameters, 0, sizeof(client_parameters));
 	
     //parse args
-    if(argc != 3)
+    if(argc != 5)
     {
-                printf("%s usage: '%s + Server IP + port'\n", argv[0], argv[0]);
+                printf("%s usage: '%s + Server IP + port + FILE_PATH + nb sockets'\n", argv[0], argv[0]);
                 fflush(stdout);
                 return 1;
         }
-        SERVER_ADDRESS=argv[1];
-        PORT_NUMBER=atoi(argv[2]);
+	SERVER_ADDRESS=argv[1];
+	PORT_NUMBER=atoi(argv[2]);
+	FILE_PATH = argv[3];
+	client_parameters.nb_sockets=argv[4];
+		
 	if(PORT_NUMBER<1 || PORT_NUMBER>65535)
     {
 		printf("bad port number %d\n",PORT_NUMBER);
@@ -68,17 +74,19 @@ int main(int argc , char *argv[])
     }
     puts("Connected\n");
 	
-	sprintf(client_parameters.file_path,"D:/DATA/cygwin_packages.zip");	
+	sprintf(client_parameters.file_path,FILE_PATH);	
 	iResult = send(sock , (char*) &client_parameters , sizeof(client_parameters), 0);
 	
     puts("Sended init msg\n");
     before = time(NULL); 
     //keep communicating with server
-	do
+	i=0;
+	sleep(5);
+	while( (iResult = recv(sock , message , BUFLEN , 0)) > 0)
 	{
+		i++;
 		difftime = time(NULL)-before;
 		//Send some data
-		iResult = recv(sock , message , BUFLEN , 0);
 		if(iResult < 0)
 		{
 			puts("Recv failed (iResult<0");
@@ -92,7 +100,9 @@ int main(int argc , char *argv[])
 			before=time(NULL);
 			nbdata=0;
 		}
+		printf("message numero%d : '%s' taille recue %d\n",i, message, strlen(message));
 	} while(iResult > 0);
+	
 		
 	iResult = shutdown(sock , SHUT_RDWR);
 	//iResult = send(sock , "nexxt" , BUFLEN , 0);

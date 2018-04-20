@@ -15,7 +15,8 @@
 
 int main(int argc , char *argv[])
 {
-    int sock=-1;
+    int sockmaster=-1;
+	int sockclients[4];
 	int i=0;
     struct sockaddr_in server;
     int iResult=-1;
@@ -27,13 +28,16 @@ int main(int argc , char *argv[])
 	
 	char* FILE_PATH=NULL;
 
-	struct client_info{
+	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
+		int sizeof_file;
 		char file_path[1024];
 	};
-	struct client_info client_parameters;
+	struct transfer_info client_parameters;
+	struct transfer_info server_parameters;
 	memset(&client_parameters, 0, sizeof(client_parameters));
+	memset(&server_parameters, 0, sizeof(server_parameters));
 	
     //parse args
     if(argc != 5)
@@ -41,11 +45,11 @@ int main(int argc , char *argv[])
                 printf("%s usage: '%s + Server IP + port + FILE_PATH + nb sockets'\n", argv[0], argv[0]);
                 fflush(stdout);
                 return 1;
-        }
+    }
 	SERVER_ADDRESS=argv[1];
 	PORT_NUMBER=atoi(argv[2]);
 	FILE_PATH = argv[3];
-	client_parameters.nb_sockets=argv[4];
+	client_parameters.nb_sockets=atoi(argv[4]);
 		
 	if(PORT_NUMBER<1 || PORT_NUMBER>65535)
     {
@@ -53,10 +57,11 @@ int main(int argc , char *argv[])
 		fflush(stdout);
 		return 1;
 	}
+	printf("port number : %d\n",PORT_NUMBER);
 	
     //Create socket
-    sock = socket(AF_INET , SOCK_STREAM , 0);
-    if (sock == -1)
+    sockmaster = socket(AF_INET , SOCK_STREAM , 0);
+    if (sockmaster == -1)
     {
         printf("Could not create socket");
     }
@@ -67,22 +72,50 @@ int main(int argc , char *argv[])
     server.sin_port = htons( PORT_NUMBER );
  
     //Connect to remote server
-    if (connect(sock , (struct sockaddr *)&server , sizeof(server)) < 0)
+    if (connect(sockmaster , (struct sockaddr *)&server , sizeof(server)) < 0)
     {
         perror("connect failed. Error");
         return 1;
     }
-    puts("Connected\n");
+    puts("Connected .. will send init msg\n");
 	
 	sprintf(client_parameters.file_path,FILE_PATH);	
-	iResult = send(sock , (char*) &client_parameters , sizeof(client_parameters), 0);
+	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
+    puts("Sended init msg\n");	
+	puts("Receive response from master..");
+	iResult = recv(sockmaster , (char*) &server_parameters , sizeof(server_parameters), 0);
+	printf("response from master received !\n");
 	
-    puts("Sended init msg\n");
+	int cnt_clients_sockets=0;
+	for(cnt_clients_sockets; cnt_clients_sockets < (server_parameters.nb_sockets-1); cnt_clients_sockets++)
+	{
+		//Create socket
+		sockclients[cnt_clients_sockets] = socket(AF_INET , SOCK_STREAM , 0);
+		if (sockclients[cnt_clients_sockets] == -1)
+		{
+			printf("Could not create socket nb %d ", cnt_clients_sockets);
+		}
+		printf("Socket number %d created\n", cnt_clients_sockets);
+		fflush(stdout);
+		 
+		//server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);
+		//server.sin_family = AF_INET;
+		printf("will create port number  %d %d ", PORT_NUMBER + cnt_clients_sockets +1, cnt_clients_sockets);
+		server.sin_port = htons( PORT_NUMBER + cnt_clients_sockets +1);
+		fflush(stdout);
+		//Connect to remote server
+		if (connect(sockclients[cnt_clients_sockets] , (struct sockaddr *)&server , sizeof(server)) < 0)
+		{
+			perror("connect failed. Error");
+			return 1;
+		}
+	}
+	printf("caca2\n");
+	
     before = time(NULL); 
     //keep communicating with server
 	i=0;
-	sleep(5);
-	while( (iResult = recv(sock , message , BUFLEN , 0)) > 0)
+	while( (iResult = recv(sockmaster , message , BUFLEN , 0)) > 0)
 	{
 		i++;
 		difftime = time(NULL)-before;
@@ -104,12 +137,12 @@ int main(int argc , char *argv[])
 	} while(iResult > 0);
 	
 		
-	iResult = shutdown(sock , SHUT_RDWR);
-	//iResult = send(sock , "nexxt" , BUFLEN , 0);
+	iResult = shutdown(sockmaster , SHUT_RDWR);
+	//iResult = send(sockmaster , "nexxt" , BUFLEN , 0);
 	puts("done\n");
 	
     printf("Bytes received: %llu\n", nbdatatotal);	
      
-    close(sock);
+    close(sockmaster);
     return 0;
 }

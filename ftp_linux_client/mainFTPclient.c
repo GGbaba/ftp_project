@@ -48,7 +48,6 @@ int main(int argc , char *argv[])
 		return 1;
 	}
 	
-     
     //Create socket
     sock = socket(AF_INET , SOCK_STREAM , 0);
     if (sock == -1)
@@ -69,6 +68,7 @@ int main(int argc , char *argv[])
     }
     puts("Connected\n");
 	
+	sprintf(client_parameters.file_path,"D:/DATA/cygwin_packages.zip");	
 	iResult = send(sock , (char*) &client_parameters , sizeof(client_parameters), 0);
 	
     puts("Sended init msg\n");
@@ -81,14 +81,14 @@ int main(int argc , char *argv[])
 		iResult = recv(sock , message , BUFLEN , 0);
 		if(iResult < 0)
 		{
-			puts("Send failed");
+			puts("Recv failed (iResult<0");
 			return 1;
 		}
 		nbdata+=iResult;
 		nbdatatotal+=iResult;
 		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
 		{
-			printf("throughput %lf Mo/s datas sent %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
+			printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
 			before=time(NULL);
 			nbdata=0;
 		}

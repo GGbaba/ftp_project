@@ -6,13 +6,14 @@
 #undef UNICODE
 
 #define WIN32_LEAN_AND_MEAN
+//#define _CRT_SECURE_NO_WARNINGS
 
 #include <windows.h>
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <stdlib.h>
-#include <stdio.h>
 #include <time.h>
+#include <stdio.h>
 
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
@@ -35,7 +36,7 @@ int __cdecl main(void)
 
 //	int iSendResult;
 	int i = 0;
-	char recvbuf[BUFLEN_SEND];
+	//char recvbuf[BUFLEN_SEND];
 
 	time_t difftime = 0, previoustime = 0, starttime = 0, totaltime = 0, before = 0, endtime = 0;
 
@@ -48,7 +49,6 @@ int __cdecl main(void)
 	struct client_info client_parameters;
 	memset(&client_parameters, 0, sizeof(client_parameters));
 
-	FILE* fh=NULL;
 	/*struct server_info{
 		int nb_sockets;
 		int chunk_size;
@@ -122,11 +122,14 @@ int __cdecl main(void)
 	closesocket(ListenSocket);
 
 	iResult = recv(ClientSocket, (char*) &client_parameters, sizeof(client_parameters), 0);
-
-	if (fh = fopen_s(NULL, client_parameters.file_path, "r") != NULL){
-		printf("error openning file\n");
+	FILE* fh = NULL;
+	if (fopen_s(&fh, client_parameters.file_path, "r") != 0)
+	{
+		perror("error openning file\n");
 		return -1;
 	}
+
+	printf("file_path_asked:%s\n", client_parameters.file_path);
 
 	char file_buf[BUFLEN_SEND]="";
 	size_t nb_octets_read_from_file=0;
@@ -135,13 +138,23 @@ int __cdecl main(void)
 	int lengthOfFile = ftell(fh)/2;
 	fseek(fh, 0, SEEK_SET);
 
+	printf("length of file/2 %d\n", lengthOfFile);
+
 	difftime = before = starttime = time(NULL);
+	i = 0;
 	// Receive until the file is read
 	do
 	{
+		i++;
 		difftime = time(NULL) - before;
-		nb_octets_read_from_file = fread(file_buf, BUFLEN_SEND, 1, fh);
-		iResult = send(ClientSocket, file_buf, BUFLEN_SEND, 0);
+		nb_octets_read_from_file = fread(file_buf, /*BUFLEN_SEND*/ 1, BUFLEN_SEND, fh);
+		if (nb_octets_read_from_file == 0)
+		{
+			perror("fread ");
+			exit(1);
+		}
+		printf("nb octests read from file %d nb_ite %d string :%s\n", nb_octets_read_from_file, i, file_buf);
+		iResult = send(ClientSocket, file_buf, nb_octets_read_from_file, 0);
 		if (iResult == SOCKET_ERROR)
 		{
 			printf("shutdown failed with error: %d\n", WSAGetLastError());
@@ -153,11 +166,17 @@ int __cdecl main(void)
 		nbdata += nb_octets_read_from_file;
 		if (difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
 		{
-			wprintf(L"throughput %lf Mo/s datas received %lf Mo \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
+			wprintf(L"throughput %lf Mo/s datas sent %lf Mo file : %d \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0), nb_octets_read_from_file);
 			before = time(NULL);
 			nbdata = 0;
 		}
 	} while (nbdatatotal<lengthOfFile);
+
+	if (fclose(fh) != 0)
+	{
+		printf("error closing file\n");
+		return -1;
+	}
 
 	printf("data sent : %llu\n", nbdatatotal);
 

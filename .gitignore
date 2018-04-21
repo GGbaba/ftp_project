@@ -142,6 +142,9 @@ packages/*
 
 # Windows Azure Build Output
 csx/
+
+# GG custom
+*.exes
 *.build.csdef
 
 # Windows Store app package directory
@@ -187,3 +190,6 @@ FakesAssemblies/
 GeneratedArtifacts/
 _Pvt_Extensions/
 ModelManifest.xml
+
+# GG custom
+*.exe

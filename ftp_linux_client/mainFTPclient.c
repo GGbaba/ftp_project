@@ -26,12 +26,16 @@ int main(int argc , char *argv[])
     char* SERVER_ADDRESS=NULL;
     int PORT_NUMBER=0;
 	
+    //FILE *fh = fopen ("RT_test0.bin", "wb");
+	FILE *fh = NULL;
+	
 	char* FILE_PATH=NULL;
 
 	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
-		int sizeof_file;
+		long sizeof_file;
+		int record;
 		char file_path[1024];
 	};
 	struct transfer_info client_parameters;
@@ -51,6 +55,11 @@ int main(int argc , char *argv[])
 	FILE_PATH = argv[3];
 	client_parameters.nb_sockets=atoi(argv[4]);
 		
+		
+	int record = 1;
+	if (record !=0)
+		fh = fopen ("RT_test0.bin", "wb");
+	
 	if(PORT_NUMBER<1 || PORT_NUMBER>65535)
     {
 		printf("bad port number %d\n",PORT_NUMBER);
@@ -81,68 +90,88 @@ int main(int argc , char *argv[])
 	
 	sprintf(client_parameters.file_path,FILE_PATH);	
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
+	printf("iResult %d\n",iResult);
     puts("Sended init msg\n");	
 	iResult = recv(sockmaster , (char*) &server_parameters , sizeof(server_parameters), 0);
+	printf("iResult %d\n",iResult);
 	puts("response from master received !\n");
 	
 	int cnt_clients_sockets=0;
-	int port=0;
-	sleep(1);
-	for(cnt_clients_sockets; cnt_clients_sockets < (server_parameters.nb_sockets-1); cnt_clients_sockets++)
+	unsigned short port=PORT_NUMBER;
+	//sleep(1);
+	printf("for loop : clients trying to connect to server\n");
+	for(i=0; i < server_parameters.nb_sockets; i++)
 	{
-		printf("for loop %d cnt_client_sockets\n",cnt_clients_sockets);
 		//Create socket
-		sockclients[cnt_clients_sockets] = socket(AF_INET , SOCK_STREAM , 0);
-		if (sockclients[cnt_clients_sockets] == -1)
+		sockclients[i] = socket(AF_INET , SOCK_STREAM , 0);
+		if (sockclients[i] == -1)
 		{
-			printf("Could not create socket nb %d ", cnt_clients_sockets);
+			printf("Could not create socket nb %d ", i);
+			break;
 		}
-		printf("Socket number %d created\n", cnt_clients_sockets);
+		printf("Socket number %d created ", i);
 		fflush(stdout);
-		 
-		//server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);
-		//server.sin_family = AF_INET;
-		port = PORT_NUMBER + cnt_clients_sockets + 1;
-		printf("will create port number  %d \n", port);
+		port++;	
 		server.sin_port = htons( port);
 		fflush(stdout);
 		//Connect to remote server
-		if (connect(sockclients[cnt_clients_sockets] , (struct sockaddr *)&server , sizeof(server)) < 0)
+		if (connect(sockclients[i] , (struct sockaddr *)&server , sizeof(server)) < 0)
 		{
+			printf("connect failed for port num %d\n",port);
+			fflush(stdout);
 			perror("connect failed. Error");
-			return 1;
+			break;
+		}
+		printf("Connected via port %d \n", port);
+		fflush(stdout);
+		cnt_clients_sockets++;
+	}
+	printf("%d scokets opened\n", cnt_clients_sockets);
+    before = time(NULL);
+    //keep communicating with server
+	//for(cnt_clients_sockets=0; cnt_clients_sockets < server_parameters.nb_sockets; cnt_clients_sockets++)
+	//{
+	printf("sizeoffile : %lu\n",server_parameters.sizeof_file);
+	fflush(stdout);
+	iResult =-1;
+	while( nbdatatotal < server_parameters.sizeof_file && iResult!=0)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
+	{
+		for (i=0; i<cnt_clients_sockets ;i++)
+		{
+			difftime = time(NULL)-before;
+			//recv some data
+			//while( (iResult = recv(sockclients[i] , message , BUFLEN , 0)) >0)
+			iResult = recv(sockclients[i] , message , BUFLEN , 0);
+			{
+				if(iResult < 0)
+				{
+					puts("Recv failed (iResult<0");
+					return 1;
+				}
+				nbdata+=iResult;
+				nbdatatotal+=iResult;
+				if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
+				{
+					printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
+					before=time(NULL);
+					nbdata=0;
+				}
+				//sleep(1);
+				if (fh != NULL)
+					fwrite (&message, iResult, 1, fh);
+				//printf("message numero%d '%s' taille recue %d\n",i, message, iResult);
+			
+			}
 		}
 	}
-	printf("caca2\n");
-	
-    before = time(NULL); 
-    //keep communicating with server
-	i=0;
-	while( (iResult = recv(sockmaster , message , BUFLEN , 0)) > 0)
-	{
-		i++;
-		difftime = time(NULL)-before;
-		//Send some data
-		if(iResult < 0)
-		{
-			puts("Recv failed (iResult<0");
-			return 1;
-		}
-		nbdata+=iResult;
-		nbdatatotal+=iResult;
-		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
-		{
-			printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
-			before=time(NULL);
-			nbdata=0;
-		}
-		printf("message numero%d : '%s' taille recue %d\n",i, message, strlen(message));
-	} while(iResult > 0);
-	
+	//}
 		
 	iResult = shutdown(sockmaster , SHUT_RDWR);
 	//iResult = send(sockmaster , "nexxt" , BUFLEN , 0);
 	puts("done\n");
+	if (fh!=NULL){
+		fclose (fh);
+		puts("file closed");}
 	
     printf("Bytes received: %llu\n", nbdatatotal);	
      

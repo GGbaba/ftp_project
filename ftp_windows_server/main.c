@@ -21,7 +21,7 @@
 
 #define BUFLEN_READ_CACHE_SSD 1024*1024
 #define BUFLEN_SEND 65536
-#define DEFAULT_PORT "1153"
+#define DEFAULT_PORT 1153
 #define MAX_FIBER_NB 8
 
 int __cdecl main(void)
@@ -30,16 +30,27 @@ int __cdecl main(void)
 	int iResult = 0;
 	unsigned long long nbdatatotal = 0, nbdata = 0;
 
-	SOCKET MasterListenSocket;// INVALID_SOCKET;
-	SOCKET MasterClientSocket; // INVALID_SOCKET
+	struct sockaddr_in server, address;
+
+	SOCKET MasterListenSocket = INVALID_SOCKET;
+	SOCKET MasterClientSocket = INVALID_SOCKET;
 	SOCKET ListenSockets[MAX_FIBER_NB];// INVALID_SOCKET;
-	SOCKET ClientSockets[MAX_FIBER_NB]; // INVALID_SOCKET
+	SOCKET ClientSockets[MAX_FIBER_NB]; // INVALID_SOCKET;
+	unsigned short port = DEFAULT_PORT;
+
+	int i = 0;
+	for (i = 0; i < MAX_FIBER_NB; i++){
+		ListenSockets[i] = INVALID_SOCKET;
+		ClientSockets[i] = INVALID_SOCKET;
+	}
+	/*memset(MasterListenSocket, 0, sizeof(MasterListenSocket));
+	memset(MasterClientSocket, 0, sizeof(MasterClientSocket));
 	memset(ListenSockets, 0, sizeof(ListenSockets));
-	memset(ClientSockets, 0, sizeof(ClientSockets));
+	memset(ClientSockets, 0, sizeof(ClientSockets));*/
 
 	struct addrinfo *masterresult;
-	struct addrinfo *clientsresult[MAX_FIBER_NB];
 	struct addrinfo masterhints;
+	struct addrinfo *clientsresult[MAX_FIBER_NB];
 	struct addrinfo clientshints[MAX_FIBER_NB];
 
 //	int iSendResult;
@@ -47,6 +58,7 @@ int __cdecl main(void)
 	//char recvbuf[BUFLEN_SEND];
 
 	time_t difftime = 0, previoustime = 0, starttime = 0, totaltime = 0, before = 0, endtime = 0;
+	int useless = 0;
 
 
 	struct transfer_info{
@@ -59,7 +71,6 @@ int __cdecl main(void)
 	struct transfer_info server_parameters;
 	memset(&client_parameters, 0, sizeof(client_parameters));
 	memset(&server_parameters, 0, sizeof(server_parameters));
-	fflush(stdout);
 
 	/*struct server_info{
 		int nb_sockets;
@@ -77,41 +88,25 @@ int __cdecl main(void)
 		return 1;
 	}
 
-	ZeroMemory(&masterhints, sizeof(masterhints));
-	masterhints.ai_family = AF_INET;
-	masterhints.ai_socktype = SOCK_STREAM;
-	masterhints.ai_protocol = IPPROTO_TCP;
-	masterhints.ai_flags = AI_PASSIVE;
-
-	//Establishing connection with the master
-
-	// Resolve the server address and port
-	iResult = getaddrinfo(NULL, DEFAULT_PORT, &masterhints, &masterresult);
-	if (iResult != 0) {
-		printf("getaddrinfo failed with error: %d\n", iResult);
-		WSACleanup();
-		return 1;
-	}
-
 	// Create a SOCKET for connecting to server
-	MasterListenSocket = socket(masterresult->ai_family, masterresult->ai_socktype, masterresult->ai_protocol);
+	MasterListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (MasterListenSocket == INVALID_SOCKET) {
 		printf("socket failed with error: %ld\n", WSAGetLastError());
-		freeaddrinfo(masterresult);
 		WSACleanup();
 		return 1;
 	}
 
+	server.sin_family = AF_INET;
+	server.sin_addr.s_addr = INADDR_ANY;
+	server.sin_port = htons(port);
 	// Setup the TCP listening socket
-	iResult = bind(MasterListenSocket, masterresult->ai_addr, (int)masterresult->ai_addrlen);
+	iResult = bind(MasterListenSocket, (struct sockaddr *) &server, sizeof(server));
 	if (iResult == SOCKET_ERROR) {
 		printf("bind failed with error: %d\n", WSAGetLastError());
-		freeaddrinfo(masterresult);
 		closesocket(MasterListenSocket);
 		WSACleanup();
 		return 1;
 	}
-	freeaddrinfo(masterresult);
 	iResult = listen(MasterListenSocket, SOMAXCONN);
 	if (iResult == SOCKET_ERROR) {
 		printf("listen failed with error: %d\n", WSAGetLastError());
@@ -119,7 +114,6 @@ int __cdecl main(void)
 		WSACleanup();
 		return 1;
 	}
-
 	// Accept a client socket
 	MasterClientSocket = accept(MasterListenSocket, NULL, NULL);
 	if (MasterClientSocket == INVALID_SOCKET) {
@@ -160,46 +154,39 @@ int __cdecl main(void)
 
 	// No longer need server socket
 	closesocket(MasterListenSocket);
-	// No longer need server clien socket
-	closesocket(MasterClientSocket);
+	// No longer need master connection
+	//closesocket(MasterClientSocket);
 	printf("I have answered to client master channel !\n");
 
 	//Establishing connection with N clients
 
-	ZeroMemory(&clientshints, sizeof(clientshints));
+	//struct addrinfo *results_test;
+	//struct addrinfo clientshintstests;
+	for (i = 0; i < MAX_FIBER_NB;i++)
+		ZeroMemory(&clientshints[i], sizeof(clientshints[i]));
 	int cnt_clients_sockets = 0;
+	//port_num = atoi(DEFAULT_PORT); //str to int
 	for (cnt_clients_sockets; cnt_clients_sockets < (client_parameters.nb_sockets - 1); cnt_clients_sockets++)
 	{
-		clientshints[cnt_clients_sockets].ai_family = AF_INET;
-		clientshints[cnt_clients_sockets].ai_socktype = SOCK_STREAM;
-		clientshints[cnt_clients_sockets].ai_protocol = IPPROTO_TCP;
-		clientshints[cnt_clients_sockets].ai_flags = AI_PASSIVE;
-		// Resolve the server address and port
-		iResult = getaddrinfo(NULL, DEFAULT_PORT + cnt_clients_sockets + 1, &clientshints[cnt_clients_sockets], &clientsresult[cnt_clients_sockets]);
-		if (iResult != 0) {
-			printf("getaddrinfo failed with error: %d\n", iResult);
-			WSACleanup();
-			return 1;
-		}
 		// Create a SOCKET for connecting to server
-		ListenSockets[cnt_clients_sockets] = socket(clientsresult[cnt_clients_sockets]->ai_family, clientsresult[cnt_clients_sockets]->ai_socktype, clientsresult[cnt_clients_sockets]->ai_protocol);
+		ListenSockets[cnt_clients_sockets] = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 		if (ListenSockets[cnt_clients_sockets] == INVALID_SOCKET) {
 			printf("socket failed with error: %ld\n", WSAGetLastError());
-			freeaddrinfo(clientsresult[cnt_clients_sockets]);
 			WSACleanup();
 			return 1;
 		}
 
+		server.sin_family = AF_INET;
+		server.sin_addr.s_addr = INADDR_ANY;
+		server.sin_port = htons(1154);
 		// Setup the TCP listening socket
-		iResult = bind(ListenSockets[cnt_clients_sockets], clientsresult[cnt_clients_sockets]->ai_addr, (int)clientsresult[cnt_clients_sockets]->ai_addrlen);
+		iResult = bind(ListenSockets[cnt_clients_sockets], (struct sockaddr *) &server, sizeof(server));
 		if (iResult == SOCKET_ERROR) {
 			printf("bind failed with error: %d\n", WSAGetLastError());
-			freeaddrinfo(clientsresult[cnt_clients_sockets]);
 			closesocket(ListenSockets[cnt_clients_sockets]);
 			WSACleanup();
 			return 1;
 		}
-		freeaddrinfo(clientsresult[cnt_clients_sockets]);
 		iResult = listen(ListenSockets[cnt_clients_sockets], SOMAXCONN);
 		if (iResult == SOCKET_ERROR) {
 			printf("listen failed with error: %d\n", WSAGetLastError());
@@ -207,6 +194,7 @@ int __cdecl main(void)
 			WSACleanup();
 			return 1;
 		}
+		// Accept a client socket
 		ClientSockets[cnt_clients_sockets] = accept(ListenSockets[cnt_clients_sockets], NULL, NULL);
 		if (ClientSockets[cnt_clients_sockets] == INVALID_SOCKET) {
 			printf("accept failed with error: %d\n", WSAGetLastError());
@@ -223,7 +211,7 @@ int __cdecl main(void)
 	
 	count = 0;
 	// Receive until the file is read
-	do
+	//do
 	{
 		count++;
 		difftime = time(NULL) - before;
@@ -255,7 +243,7 @@ int __cdecl main(void)
 			nbdata = 0;
 		}
 		//printf("nbdatatotal %d nb_octets_per_blocks%d", nbdatatotal, nb_octets_per_block);
-	} while (nbdatatotal<lengthOfFile && nb_octets_per_block != 0 );
+	} //while (nbdatatotal<lengthOfFile && nb_octets_per_block != 0 );
 
 	if (fclose(fh) != 0)
 	{

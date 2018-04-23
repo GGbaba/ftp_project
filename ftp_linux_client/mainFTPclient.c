@@ -82,13 +82,15 @@ int main(int argc , char *argv[])
 	sprintf(client_parameters.file_path,FILE_PATH);	
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
     puts("Sended init msg\n");	
-	puts("Receive response from master..");
 	iResult = recv(sockmaster , (char*) &server_parameters , sizeof(server_parameters), 0);
-	printf("response from master received !\n");
+	puts("response from master received !\n");
 	
 	int cnt_clients_sockets=0;
+	int port=0;
+	sleep(1);
 	for(cnt_clients_sockets; cnt_clients_sockets < (server_parameters.nb_sockets-1); cnt_clients_sockets++)
 	{
+		printf("for loop %d cnt_client_sockets\n",cnt_clients_sockets);
 		//Create socket
 		sockclients[cnt_clients_sockets] = socket(AF_INET , SOCK_STREAM , 0);
 		if (sockclients[cnt_clients_sockets] == -1)
@@ -100,8 +102,9 @@ int main(int argc , char *argv[])
 		 
 		//server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);
 		//server.sin_family = AF_INET;
-		printf("will create port number  %d %d ", PORT_NUMBER + cnt_clients_sockets +1, cnt_clients_sockets);
-		server.sin_port = htons( PORT_NUMBER + cnt_clients_sockets +1);
+		port = PORT_NUMBER + cnt_clients_sockets + 1;
+		printf("will create port number  %d \n", port);
+		server.sin_port = htons( port);
 		fflush(stdout);
 		//Connect to remote server
 		if (connect(sockclients[cnt_clients_sockets] , (struct sockaddr *)&server , sizeof(server)) < 0)

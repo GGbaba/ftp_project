@@ -131,40 +131,36 @@ int main(int argc , char *argv[])
     //keep communicating with server
 	//for(cnt_clients_sockets=0; cnt_clients_sockets < server_parameters.nb_sockets; cnt_clients_sockets++)
 	//{
+	int size_to_retrieve = BUFLEN;
 	printf("sizeoffile : %lu\n",server_parameters.sizeof_file);
 	fflush(stdout);
-	iResult =-1;
-	while( nbdatatotal < server_parameters.sizeof_file && iResult!=0)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
+	while( nbdatatotal < server_parameters.sizeof_file/* && iResult!=0*/)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
 	{
-		for (i=0; i<cnt_clients_sockets ;i++)
+		difftime = time(NULL)-before;
+		for (i=0; i < cnt_clients_sockets ;i++)
 		{
-			difftime = time(NULL)-before;
-			//recv some data
+			iResult = -1;
+			size_to_retrieve = BUFLEN;
+			//pour chaque socket
 			//while( (iResult = recv(sockclients[i] , message , BUFLEN , 0)) >0)
-			iResult = recv(sockclients[i] , message , BUFLEN , 0);
+			while (size_to_retrieve > 0 && iResult != 0 )
 			{
-				if(iResult < 0)
-				{
-					puts("Recv failed (iResult<0");
-					return 1;
-				}
+				iResult = recv(sockclients[i] , message , size_to_retrieve , 0);
+				if(iResult < 0)	{puts("Recv failed (iResult<0");return 1;}
+				size_to_retrieve-= iResult;
 				nbdata+=iResult;
 				nbdatatotal+=iResult;
-				if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
-				{
-					printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
-					before=time(NULL);
-					nbdata=0;
-				}
-				//sleep(1);
-				if (fh != NULL)
-					fwrite (&message, iResult, 1, fh);
-				//printf("message numero%d '%s' taille recue %d\n",i, message, iResult);
-			
-			}
+				if (fh != NULL)	fwrite (&message, iResult, 1, fh);
+			}//while (iResult > 0);
+		}
+		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
+		{
+			printf("throughput %lf Mo/s  \n", nbdata/(1024*1024.0) );
+			printf("%llu octets \n", nbdatatotal );
+			before=time(NULL);
+			nbdata=0;
 		}
 	}
-	//}
 		
 	iResult = shutdown(sockmaster , SHUT_RDWR);
 	//iResult = send(sockmaster , "nexxt" , BUFLEN , 0);

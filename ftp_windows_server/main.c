@@ -20,9 +20,9 @@
 // #pragma comment (lib, "Mswsock.lib")
 
 #define BUFLEN_READ_CACHE_SSD 1024*1024
-#define BUFLEN_SEND 65536
+#define BUFLEN_SEND 65536*4*100
 #define DEFAULT_PORT 1153
-#define MAX_FIBER_NB 8
+#define MAX_FIBER_NB 4
 
 int __cdecl main(void)
 {
@@ -55,9 +55,9 @@ int __cdecl main(void)
 	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
-		long sizeof_file;
+		unsigned long long sizeof_file;
 		int record;
-		char file_path[1024];
+		char file_path[256];
 	};
 	struct transfer_info client_parameters;
 	struct transfer_info server_parameters;
@@ -79,7 +79,6 @@ int __cdecl main(void)
 		printf("WSAStartup failed with error: %d\n", iResult);
 		return 1;
 	}
-
 	// Create a SOCKET for connecting to server
 	MasterListenSocket = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (MasterListenSocket == INVALID_SOCKET) {
@@ -87,7 +86,6 @@ int __cdecl main(void)
 		WSACleanup();
 		return 1;
 	}
-
 	server.sin_family = AF_INET;
 	server.sin_addr.s_addr = INADDR_ANY;
 	server.sin_port = htons(port);
@@ -125,15 +123,15 @@ int __cdecl main(void)
 
 	memcpy(&server_parameters, &client_parameters, sizeof(struct transfer_info));
 
-	printf("file_path_asked:%s\n", client_parameters.file_path);
+	printf("file_path_asked:%s strlen%d\n", client_parameters.file_path, strlen(client_parameters.file_path));
 	printf("nb_clients_to_connect : %d\n", client_parameters.nb_sockets);
 	printf("Waiting for %d clients...\n", client_parameters.nb_sockets);
 
 
 	FILE* fh = NULL;
-	if (fopen_s(&fh, client_parameters.file_path, "rb") != 0)
+	if (fopen_s(&fh, "E:\\20180414A\\20180414A-01\\20180414A-01_CH0.tdms" /*client_parameters.file_path*/, "rb") != 0)
 	{
-		perror("error openning file\n");
+		perror("error openning file0\n");
 		return -1;
 	}
 	/*FILE* fh2;
@@ -143,16 +141,24 @@ int __cdecl main(void)
 		return -1;
 	}*/
 
-	char file_buf[BUFLEN_SEND*MAX_FIBER_NB];
+	printf("BUFLEN_SEND %d \n", BUFLEN_SEND);
+	//char file_buf[BUFLEN_SEND*MAX_FIBER_NB];
+	char *file_buf = (char *) malloc (BUFLEN_SEND*MAX_FIBER_NB);
+	if (file_buf == NULL)
+	{
+		printf("error malloc");
+		return -1;
+	}
 	int nb_octets_per_socket = BUFLEN_SEND;
 	int nb_octets_per_block = nb_octets_per_socket*client_parameters.nb_sockets;
 	int nb_blocks_to_read = 1;
 	int nb_blocks_read_from_file = 0;
+	unsigned long long lengthOfFile;
+	if (!GetFileSizeEx(fh, &lengthOfFile)) {
+		/* Handle error */
+	}
 
-	fseek(fh, 0, SEEK_END);
-	long lengthOfFile = ftell(fh);
-	fseek(fh, 0, SEEK_SET);
-	printf("length of file (octets) %d\n", lengthOfFile);
+	printf("length of file (octets) %llu\n", lengthOfFile);
 
 	server_parameters.sizeof_file = lengthOfFile;
 
@@ -206,29 +212,32 @@ int __cdecl main(void)
 	count = 0;
 	printf("sizeof filebuf %d cnt_clients_sockets %d \n", sizeof(file_buf), cnt_clients_sockets);
 	// Receive until the file is read
-
+	//setvbuf(fh, NULL, _IONBF, 0); //disable buffering on disk
 	//printf("nb_octets_per_block %d \n", nb_octets_per_block);
 	//printf("nb_octets_per_socket %d \n", nb_octets_per_socket);
 	while (nbdatatotal<lengthOfFile && nb_octets_per_socket != 0 && cnt_clients_sockets > 0)
 	{
 		difftime = time(NULL) - before;
-		if ((lengthOfFile - nbdatatotal) <= nb_octets_per_block)
+		if ((lengthOfFile - nbdatatotal) <= nb_octets_per_socket)
 		{
-			nb_octets_per_block = lengthOfFile - nbdatatotal;
+			//nb_octets_per_block = lengthOfFile - nbdatatotal;
 			nb_octets_per_socket = nb_octets_per_block / cnt_clients_sockets;
 			if (nb_octets_per_socket <= 0) nb_octets_per_socket = 1;
 		}
 		//read file per N blocks
-		if (fh != NULL) nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh);
+		//nb_blocks_read_from_file = 1;
+		if (fh != NULL) nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket, cnt_clients_sockets, fh);
 		if (nb_blocks_read_from_file == 0) {
 			printf("fail\n nb_octets_per_socket %d\n", nb_octets_per_socket);
 			printf(" lengthOfFile %ld\n", lengthOfFile);
 			printf(" nbdatatotal %ld\n", nbdatatotal);
 			printf(" nb_octets_per_block %ld\n", nb_octets_per_block);
-		}
+		}			
+		nbdatatotal += nb_blocks_read_from_file*nb_octets_per_socket;
+		nbdata += nb_blocks_read_from_file*nb_octets_per_socket;
 		//if (fh2!= NULL) fwrite(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh2);
 		//send data depending on nb sockets opened
-		for (i = 0; i < cnt_clients_sockets ; i++)
+		/*for (i = 0; i < cnt_clients_sockets ; i++)
 		{
 			//printf("client %d\n", i);	//printf("iResult %d\n", iResult);
 			iResult = send(ClientSockets[i], (const char *)&file_buf[i*nb_octets_per_socket], nb_octets_per_socket, 0);
@@ -242,7 +251,7 @@ int __cdecl main(void)
 			//printf(" nbdatatotal %llu nboctets_per_block %d \n", nbdatatotal, nb_octets_per_block);
 			nbdatatotal += iResult;
 			nbdata += iResult;
-		}
+		}*/
 		if (difftime == 1)
 		{
 			wprintf(L"throughput %lf Mo/s datas sent %lf Mo \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
@@ -254,8 +263,11 @@ int __cdecl main(void)
 	if (fclose(fh) != 0)
 	{
 		printf("error closing file\n");
-		return -1;
 	}
+
+	if (file_buf != NULL)
+		free(file_buf);
+	
 	/*if (fclose(fh2) != 0)
 	{
 		printf("error closing file\n");

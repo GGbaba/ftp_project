@@ -88,7 +88,7 @@ int main(int argc , char *argv[])
     }
     puts("Connected .. will send init msg\n");
 	
-	sprintf(client_parameters.file_path,FILE_PATH);	
+	strcpy(client_parameters.file_path,FILE_PATH);	
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
 	printf("iResult %d\n",iResult);
     puts("Sended init msg\n");	
@@ -136,32 +136,26 @@ int main(int argc , char *argv[])
 	iResult =-1;
 	while( nbdatatotal < server_parameters.sizeof_file && iResult!=0)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
 	{
+		difftime = time(NULL)-before;
 		for (i=0; i<cnt_clients_sockets ;i++)
 		{
-			difftime = time(NULL)-before;
-			//recv some data
+			int size_to_retrieve = BUFLEN;
 			//while( (iResult = recv(sockclients[i] , message , BUFLEN , 0)) >0)
-			iResult = recv(sockclients[i] , message , BUFLEN , 0);
+			while (size_to_retrieve > 0 && iResult != 0 )
 			{
-				if(iResult < 0)
-				{
-					puts("Recv failed (iResult<0");
-					return 1;
-				}
+				iResult = recv(sockclients[i] , message , size_to_retrieve , 0);
+				if(iResult < 0)	{puts("Recv failed (iResult<0");return 1;}
+				size_to_retrieve-= iResult;
 				nbdata+=iResult;
 				nbdatatotal+=iResult;
-				if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
-				{
-					printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
-					before=time(NULL);
-					nbdata=0;
-				}
-				//sleep(1);
-				if (fh != NULL)
-					fwrite (&message, iResult, 1, fh);
-				//printf("message numero%d '%s' taille recue %d\n",i, message, iResult);
-			
-			}
+				if (fh != NULL) fwrite (&message, iResult, 1, fh);
+			}//while (iResult > 0);
+		}
+		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
+		{
+			printf("throughput %lf Mo/s datas received %lf Mo \n", nbdata/(1024*1024.0), nbdatatotal/(1024*1024.0) );
+			before=time(NULL);
+			nbdata=0;
 		}
 	}
 	//}

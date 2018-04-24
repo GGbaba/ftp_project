@@ -23,20 +23,21 @@ int main(int argc , char *argv[])
     char message[BUFLEN]="";
     time_t difftime=0, before=0;
     unsigned long long nbdata=0, nbdatatotal=0;
-    char* SERVER_ADDRESS=NULL;
+    char SERVER_ADDRESS[16][16]={"192.168.0.2","192.168.1.2","192.168.2.2","192.168.3.2"};
+
     int PORT_NUMBER=0;
 	
     //FILE *fh = fopen ("RT_test0.bin", "wb");
 	FILE *fh = NULL;
 	
-	char* FILE_PATH=NULL;
+	char FILE_PATH[256]="D:toto.txt";
 
 	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
-		long sizeof_file;
+		unsigned long long sizeof_file;
 		int record;
-		char file_path[1024];
+		char file_path[256];
 	};
 	struct transfer_info client_parameters;
 	struct transfer_info server_parameters;
@@ -44,19 +45,22 @@ int main(int argc , char *argv[])
 	memset(&server_parameters, 0, sizeof(server_parameters));
 	
     //parse args
-    if(argc != 5)
+    if(argc != 3)
     {
-                printf("%s usage: '%s + Server IP + port + FILE_PATH + nb sockets'\n", argv[0], argv[0]);
-                fflush(stdout);
-                return 1;
+		printf("%s usage: '%s + FILE_PATH + nb sockets'\n", argv[0], argv[0]);
+		fflush(stdout);
+		return 1;
     }
-	SERVER_ADDRESS=argv[1];
-	PORT_NUMBER=atoi(argv[2]);
-	FILE_PATH = argv[3];
-	client_parameters.nb_sockets=atoi(argv[4]);
+    /*for(i=0;i<4;i++)
+    {
+		printf("toto");
+		strcpy(SERVER_ADDRESS[i], argv[i+2]);
+	}*/
+	//strcpy(FILE_PATH, argv[1]);
+	client_parameters.nb_sockets=atoi(argv[2]);
 		
-		
-	int record = 1;
+	PORT_NUMBER = 1153;
+	int record = 0;
 	if (record !=0)
 		fh = fopen ("RT_test0.bin", "wb");
 	
@@ -76,7 +80,7 @@ int main(int argc , char *argv[])
     }
     puts("Socket created");
      
-    server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS);
+    server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS[0]);
     server.sin_family = AF_INET;
     server.sin_port = htons( PORT_NUMBER );
  
@@ -89,6 +93,7 @@ int main(int argc , char *argv[])
     puts("Connected .. will send init msg\n");
 	
 	strcpy(client_parameters.file_path,FILE_PATH);	
+	
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
 	printf("iResult %d\n",iResult);
     puts("Sended init msg\n");	
@@ -98,10 +103,10 @@ int main(int argc , char *argv[])
 	
 	int cnt_clients_sockets=0;
 	unsigned short port=PORT_NUMBER;
-	//sleep(1);
 	printf("for loop : clients trying to connect to server\n");
 	for(i=0; i < server_parameters.nb_sockets; i++)
 	{
+		sleep(1);
 		//Create socket
 		sockclients[i] = socket(AF_INET , SOCK_STREAM , 0);
 		if (sockclients[i] == -1)
@@ -112,6 +117,8 @@ int main(int argc , char *argv[])
 		printf("Socket number %d created ", i);
 		fflush(stdout);
 		port++;	
+		printf("add num %d : %s",i,SERVER_ADDRESS[i]);
+		server.sin_addr.s_addr = inet_addr(SERVER_ADDRESS[i]);
 		server.sin_port = htons( port);
 		fflush(stdout);
 		//Connect to remote server
@@ -132,9 +139,9 @@ int main(int argc , char *argv[])
 	//for(cnt_clients_sockets=0; cnt_clients_sockets < server_parameters.nb_sockets; cnt_clients_sockets++)
 	//{
 	int size_to_retrieve = BUFLEN;
-	printf("sizeoffile : %lu\n",server_parameters.sizeof_file);
+	printf("sizeoffile : %llu\n",server_parameters.sizeof_file);
 	fflush(stdout);
-	while( nbdatatotal < server_parameters.sizeof_file/* && iResult!=0*/)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
+	while( nbdatatotal < server_parameters.sizeof_file && cnt_clients_sockets > 0/* && iResult!=0*/)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
 	{
 		difftime = time(NULL)-before;
 		for (i=0; i < cnt_clients_sockets ;i++)

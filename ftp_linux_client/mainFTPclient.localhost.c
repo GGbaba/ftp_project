@@ -23,7 +23,7 @@ int main(int argc , char *argv[])
     char message[BUFLEN]="";
     time_t difftime=0, before=0;
     unsigned long long nbdata=0, nbdatatotal=0;
-    char SERVER_ADDRESS[16][16]={"192.168.0.2","192.168.1.2","192.168.2.2","192.168.3.2"};
+    char SERVER_ADDRESS[16][16]={"127.0.0.1","127.0.0.1","127.0.0.1","127.0.0.1"};
 
     int PORT_NUMBER=0;
 	
@@ -56,7 +56,7 @@ int main(int argc , char *argv[])
 		printf("toto");
 		strcpy(SERVER_ADDRESS[i], argv[i+2]);
 	}*/
-	//strcpy(FILE_PATH, argv[1]);
+	strcpy(FILE_PATH, argv[1]);
 	client_parameters.nb_sockets=atoi(argv[2]);
 		
 	PORT_NUMBER = 1153;

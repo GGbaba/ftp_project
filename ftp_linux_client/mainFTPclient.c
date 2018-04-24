@@ -88,7 +88,7 @@ int main(int argc , char *argv[])
     }
     puts("Connected .. will send init msg\n");
 	
-	sprintf(client_parameters.file_path,FILE_PATH);	
+	strcpy(client_parameters.file_path,FILE_PATH);	
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
 	printf("iResult %d\n",iResult);
     puts("Sended init msg\n");	

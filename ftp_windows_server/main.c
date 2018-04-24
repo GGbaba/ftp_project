@@ -136,6 +136,12 @@ int __cdecl main(void)
 		perror("error openning file\n");
 		return -1;
 	}
+	/*FILE* fh2;
+	if (fopen_s(&fh2, "D:\DATA\toto.bin", "rb") != 0)
+	{
+		perror("error openning file2\n");
+		return -1;
+	}*/
 
 	char file_buf[BUFLEN_SEND*MAX_FIBER_NB];
 	int nb_octets_per_socket = BUFLEN_SEND;
@@ -205,7 +211,6 @@ int __cdecl main(void)
 	//printf("nb_octets_per_socket %d \n", nb_octets_per_socket);
 	while (nbdatatotal<lengthOfFile && nb_octets_per_socket != 0 && cnt_clients_sockets > 0)
 	{
-		count++;
 		difftime = time(NULL) - before;
 		if ((lengthOfFile - nbdatatotal) <= nb_octets_per_block)
 		{
@@ -213,12 +218,9 @@ int __cdecl main(void)
 			nb_octets_per_socket = (lengthOfFile - nbdatatotal) / cnt_clients_sockets;
 			if (nb_octets_per_socket <= 0) nb_octets_per_socket = 1;
 		}
-		//printf("nb_octets_per_block %d \n", nb_octets_per_block);
-		//printf("nb_octets_per_socket %d \n", nb_octets_per_socket);
 		//read file per N blocks
-		nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh);
-		//printf("nb_blocks_read_from_file %d \n", nb_blocks_read_from_file);
-		//Sleep(1000);
+		if (fh != NULL) nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh);
+		//if (fh2!= NULL) fwrite(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh2);
 		//send data depending on nb sockets opened
 		for (i = 0; i < cnt_clients_sockets ; i++)
 		{
@@ -241,8 +243,6 @@ int __cdecl main(void)
 			before = time(NULL);
 			nbdata = 0;
 		}
-		//nb_octets_per_socket = 0; //bench_purpose
-		//printf("nbdatatotal %d nb_octets_per_blocks%d", nbdatatotal, nb_octets_per_block);
 	} 
 
 	if (fclose(fh) != 0)
@@ -250,6 +250,11 @@ int __cdecl main(void)
 		printf("error closing file\n");
 		return -1;
 	}
+	/*if (fclose(fh2) != 0)
+	{
+		printf("error closing file\n");
+		return -1;
+	}*/
 
 	printf("data sent : %llu\n", nbdatatotal);
 

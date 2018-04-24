@@ -215,11 +215,17 @@ int __cdecl main(void)
 		if ((lengthOfFile - nbdatatotal) <= nb_octets_per_block)
 		{
 			nb_octets_per_block = lengthOfFile - nbdatatotal;
-			nb_octets_per_socket = (lengthOfFile - nbdatatotal) / cnt_clients_sockets;
+			nb_octets_per_socket = nb_octets_per_block / cnt_clients_sockets;
 			if (nb_octets_per_socket <= 0) nb_octets_per_socket = 1;
 		}
 		//read file per N blocks
 		if (fh != NULL) nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh);
+		if (nb_blocks_read_from_file == 0) {
+			printf("fail\n nb_octets_per_socket %d\n", nb_octets_per_socket);
+			printf(" lengthOfFile %ld\n", lengthOfFile);
+			printf(" nbdatatotal %ld\n", nbdatatotal);
+			printf(" nb_octets_per_block %ld\n", nb_octets_per_block);
+		}
 		//if (fh2!= NULL) fwrite(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh2);
 		//send data depending on nb sockets opened
 		for (i = 0; i < cnt_clients_sockets ; i++)

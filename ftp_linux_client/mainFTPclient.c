@@ -150,7 +150,7 @@ int main(int argc , char *argv[])
 				size_to_retrieve-= iResult;
 				nbdata+=iResult;
 				nbdatatotal+=iResult;
-				if (fh != NULL) fwrite (&message, iResult, 1, fh);
+				if (fh != NULL)	fwrite (&message, iResult, 1, fh);
 			}//while (iResult > 0);
 		}
 		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)

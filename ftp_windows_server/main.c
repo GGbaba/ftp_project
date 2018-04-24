@@ -131,7 +131,7 @@ int __cdecl main(void)
 
 
 	FILE* fh = NULL;
-	if (fopen_s(&fh, client_parameters.file_path, "r") != 0)
+	if (fopen_s(&fh, client_parameters.file_path, "rb") != 0)
 	{
 		perror("error openning file\n");
 		return -1;
@@ -139,8 +139,8 @@ int __cdecl main(void)
 
 	char file_buf[BUFLEN_SEND*MAX_FIBER_NB];
 	int nb_octets_per_socket = BUFLEN_SEND;
-	int nb_octets_per_block = BUFLEN_SEND*client_parameters.nb_sockets;
-	int nb_blocks_to_read = sizeof(char);//1;
+	int nb_octets_per_block = nb_octets_per_socket*client_parameters.nb_sockets;
+	int nb_blocks_to_read = 1;
 	int nb_blocks_read_from_file = 0;
 
 	fseek(fh, 0, SEEK_END);
@@ -168,7 +168,7 @@ int __cdecl main(void)
 		}
 		port++;
 		server.sin_port = htons(port);
-		printf("port num : %d\n", port);
+		printf("port num : %d ", port);
 		// Setup the TCP listening socket
 		iResult = bind(ListenSockets[i], (struct sockaddr *) &server, sizeof(server));
 		if (iResult == SOCKET_ERROR) {
@@ -193,7 +193,7 @@ int __cdecl main(void)
 			return 1;
 		}
 		cnt_clients_sockets++;
-		printf("client num : %d\n\n", cnt_clients_sockets);
+		printf("client num : %d\n", cnt_clients_sockets);
 	}
 
 	difftime = before = starttime = time(NULL);
@@ -211,19 +211,19 @@ int __cdecl main(void)
 		{
 			nb_octets_per_block = lengthOfFile - nbdatatotal;
 			nb_octets_per_socket = (lengthOfFile - nbdatatotal) / cnt_clients_sockets;
-			if (nb_octets_per_socket == 0) nb_octets_per_socket = 1;
+			if (nb_octets_per_socket <= 0) nb_octets_per_socket = 1;
 		}
 		//printf("nb_octets_per_block %d \n", nb_octets_per_block);
 		//printf("nb_octets_per_socket %d \n", nb_octets_per_socket);
 		//read file per N blocks
 		nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh);
 		//printf("nb_blocks_read_from_file %d \n", nb_blocks_read_from_file);
+		//Sleep(1000);
 		//send data depending on nb sockets opened
-		for (i = 0; i < cnt_clients_sockets; i++)
+		for (i = 0; i < cnt_clients_sockets ; i++)
 		{
-			//printf("client %d\n", i);
+			//printf("client %d\n", i);	//printf("iResult %d\n", iResult);
 			iResult = send(ClientSockets[i], (const char *)&file_buf[i*nb_octets_per_socket], nb_octets_per_socket, 0);
-			//printf("iResult %d\n", iResult);
 			if (iResult == SOCKET_ERROR)
 			{
 				printf("send failed with error: %d\n", WSAGetLastError());
@@ -235,13 +235,13 @@ int __cdecl main(void)
 			nbdatatotal += iResult;
 			nbdata += iResult;
 		}
-		//printf("\n-------------\n");
 		if (difftime == 1)
 		{
-			wprintf(L"throughput %lf Mo/s datas sent %lf Mo nb_blocks read : %d \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0), nb_blocks_read_from_file);
+			wprintf(L"throughput %lf Mo/s datas sent %lf Mo \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
 			before = time(NULL);
 			nbdata = 0;
 		}
+		//nb_octets_per_socket = 0; //bench_purpose
 		//printf("nbdatatotal %d nb_octets_per_blocks%d", nbdatatotal, nb_octets_per_block);
 	} 
 

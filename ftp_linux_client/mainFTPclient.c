@@ -11,7 +11,7 @@
  
 //#define SERVER_ADDRESS "127.0.0.1"
 //#define PORT_NUMBER 1153
-#define BUFLEN 65536
+#define BUFLEN 1024*1024*2
 
 int main(int argc , char *argv[])
 {
@@ -20,24 +20,26 @@ int main(int argc , char *argv[])
 	int i=0;
     struct sockaddr_in server;
     int iResult=-1;
-    char message[BUFLEN]="";
+    //char message[BUFLEN]="";
     time_t difftime=0, before=0;
     unsigned long long nbdata=0, nbdatatotal=0;
     char SERVER_ADDRESS[16][16]={"192.168.0.2","192.168.1.2","192.168.2.2","192.168.3.2"};
-
-    int PORT_NUMBER=0;
+    int PORT_NUMBER=1153;
+    char* message = (char *) malloc(BUFLEN);
+    if (message ==NULL){
+		perror("malloc issue");
+		exit(1);
+	}
 	
     //FILE *fh = fopen ("RT_test0.bin", "wb");
 	FILE *fh = NULL;
-	
-	char FILE_PATH[256]="D:toto.txt";
 
 	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
-		unsigned long long sizeof_file;
+		long long sizeof_file;
 		int record;
-		char file_path[256];
+		char file_path[1024];
 	};
 	struct transfer_info client_parameters;
 	struct transfer_info server_parameters;
@@ -57,12 +59,11 @@ int main(int argc , char *argv[])
 		strcpy(SERVER_ADDRESS[i], argv[i+2]);
 	}*/
 	//strcpy(FILE_PATH, argv[1]);
+	strcpy(client_parameters.file_path,argv[1]);	
 	client_parameters.nb_sockets=atoi(argv[2]);
 		
-	PORT_NUMBER = 1153;
-	int record = 0;
-	if (record !=0)
-		fh = fopen ("RT_test0.bin", "wb");
+	/*int record = 0;
+	if (record !=0) fh = fopen ("RT_test0.bin", "wb");*/
 	
 	if(PORT_NUMBER<1 || PORT_NUMBER>65535)
     {
@@ -91,9 +92,7 @@ int main(int argc , char *argv[])
         return 1;
     }
     puts("Connected .. will send init msg\n");
-	
-	strcpy(client_parameters.file_path,FILE_PATH);	
-	
+		
 	iResult = send(sockmaster , (char*) &client_parameters , sizeof(client_parameters), 0);
 	printf("iResult %d\n",iResult);
     puts("Sended init msg\n");	
@@ -138,27 +137,33 @@ int main(int argc , char *argv[])
     //keep communicating with server
 	//for(cnt_clients_sockets=0; cnt_clients_sockets < server_parameters.nb_sockets; cnt_clients_sockets++)
 	//{
-	int size_to_retrieve = BUFLEN;
-	printf("sizeoffile : %llu\n",server_parameters.sizeof_file);
+	int size_to_retrieve = 0;
+	//int size_to_retrieve_per_ite = 0;
+	printf("sizeoffile : %lli\n",server_parameters.sizeof_file);
 	fflush(stdout);
-	while( nbdatatotal < server_parameters.sizeof_file && cnt_clients_sockets > 0/* && iResult!=0*/)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
+	while( nbdatatotal < server_parameters.sizeof_file && cnt_clients_sockets > 0)//(iResult = recv(sockclients[cnt_clients_sockets] , message , BUFLEN , 0)) > 0 )
 	{
 		difftime = time(NULL)-before;
 		for (i=0; i < cnt_clients_sockets ;i++)
 		{
+			//printf("msg received for client [%d] \n", i);
+			fflush(stdout);
 			iResult = -1;
 			size_to_retrieve = BUFLEN;
+			//size_to_retrieve_per_ite = BUFLEN;
 			//pour chaque socket
 			//while( (iResult = recv(sockclients[i] , message , BUFLEN , 0)) >0)
-			while (size_to_retrieve > 0 && iResult != 0 )
+			while ( size_to_retrieve > 0 && iResult !=0)
 			{
-				iResult = recv(sockclients[i] , message , size_to_retrieve , 0);
+				//if (size_to_retrieve <= BUFLEN)
+					//size_to_retrieve_per_ite = size_to_retrieve;
+				iResult = recv(sockclients[i] , message , size_to_retrieve, 0);
 				if(iResult < 0)	{puts("Recv failed (iResult<0");return 1;}
 				size_to_retrieve-= iResult;
 				nbdata+=iResult;
 				nbdatatotal+=iResult;
 				if (fh != NULL)	fwrite (&message, iResult, 1, fh);
-			}//while (iResult > 0);
+			}
 		}
 		if(difftime == 1 /*(clock_t) CLOCKS_PER_SEC/10*/)
 		{
@@ -168,16 +173,24 @@ int main(int argc , char *argv[])
 			nbdata=0;
 		}
 	}
-		
-	iResult = shutdown(sockmaster , SHUT_RDWR);
-	//iResult = send(sockmaster , "nexxt" , BUFLEN , 0);
-	puts("done\n");
-	if (fh!=NULL){
-		fclose (fh);
-		puts("file closed");}
 	
-    printf("Bytes received: %llu\n", nbdatatotal);	
-     
+	puts("done\n");
+	printf("Bytes received: %llu\n", nbdatatotal);	
+	fflush(stdout);
+	
+    if (message != NULL){
+		free(message);
+	}
+	
+	if (fh!=NULL){ fclose (fh); puts("file closed");}
+	
+	for(i=0; i < cnt_clients_sockets; i++)
+	{
+		iResult = shutdown(sockclients[i] , SHUT_RDWR);
+		close(sockclients[i]);
+	}		
+	iResult = shutdown(sockmaster , SHUT_RDWR);     
     close(sockmaster);
+    
     return 0;
 }

@@ -30,9 +30,10 @@ int main(int argc , char *argv[])
 		perror("malloc issue");
 		exit(1);
 	}
+	memset(message,0,BUFLEN);
 	
-    //FILE *fh = fopen ("RT_test0.bin", "wb");
-	FILE *fh = NULL;
+    FILE *fh = fopen ("RT_test0.bin", "wb");
+	//FILE *fh = NULL;
 
 	struct transfer_info{
 		int nb_sockets;

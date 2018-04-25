@@ -13,14 +13,17 @@
 #include <ws2tcpip.h>
 #include <stdlib.h>
 #include <time.h>
-#include <stdio.h>
+#include <fcntl.h>      /* Needed only for _O_RDWR definition */  
+#include <io.h>  
+#include <stdio.h>  
+#include <share.h>  
 
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
 
-#define BUFLEN_READ_CACHE_SSD 1024*1024
-#define BUFLEN_SEND 65536*4*100
+#define BUFLEN_READ_DISK 1024*1024*2
+#define BUFLEN_SEND 65536//*100
 #define DEFAULT_PORT 1153
 #define MAX_FIBER_NB 4
 
@@ -28,7 +31,7 @@ int __cdecl main(void)
 {
 	WSADATA wsaData;
 	int iResult = 0;
-	unsigned long long nbdatatotal = 0, nbdata = 0;
+	long long nbdatatotal = 0, nbdata = 0;
 
 	struct sockaddr_in server;
 
@@ -55,9 +58,9 @@ int __cdecl main(void)
 	struct transfer_info{
 		int nb_sockets;
 		int chunk_size;
-		unsigned long long sizeof_file;
+		long long sizeof_file;
 		int record;
-		char file_path[256];
+		char file_path[1024];
 	};
 	struct transfer_info client_parameters;
 	struct transfer_info server_parameters;
@@ -113,58 +116,50 @@ int __cdecl main(void)
 		return 1;
 	}
 	printf("Client master connected ...client sending init data\n");
-
+	
 	// No longer need server socket
 	closesocket(MasterListenSocket);
 	// No longer need master connection
 	//closesocket(MasterClientSocket);
-	
+
+	//get clients parameters
 	iResult = recv(MasterClientSocket, (char*)&client_parameters, sizeof(client_parameters), 0);
 
 	memcpy(&server_parameters, &client_parameters, sizeof(struct transfer_info));
 
+	printf("iResult from client : %d\n", iResult);
 	printf("file_path_asked:%s strlen%d\n", client_parameters.file_path, strlen(client_parameters.file_path));
 	printf("nb_clients_to_connect : %d\n", client_parameters.nb_sockets);
 	printf("Waiting for %d clients...\n", client_parameters.nb_sockets);
 
-
-	FILE* fh = NULL;
-	if (fopen_s(&fh, "E:\\20180414A\\20180414A-01\\20180414A-01_CH0.tdms" /*client_parameters.file_path*/, "rb") != 0)
+	int fh = 0;
+	if (_sopen_s(&fh, client_parameters.file_path, _O_BINARY, _SH_DENYNO, 0))
 	{
 		perror("error openning file0\n");
-		return -1;
+		exit(1);
 	}
-	/*FILE* fh2;
-	if (fopen_s(&fh2, "D:\DATA\toto.bin", "rb") != 0)
-	{
-		perror("error openning file2\n");
-		return -1;
-	}*/
+	/* Set the end of the file: */
+	int long long pos = _lseeki64(fh, 0L, SEEK_END);
+	if (pos == -1L)
+		perror("_lseeki64 to end failed");
+	else
+		printf("Position for end of file seek = %lld\n", pos);
+	long long lengthOfFile = pos;
+	/* Seek the beginning of the file: */
+	pos = _lseek(fh, 0L, SEEK_SET);
+	if (pos == -1L)
+		perror("_lseek to beginning failed");
+	else
+		printf("Position for beginning of file seek = %ld\n", pos);
 
-	printf("BUFLEN_SEND %d \n", BUFLEN_SEND);
-	//char file_buf[BUFLEN_SEND*MAX_FIBER_NB];
-	char *file_buf = (char *) malloc (BUFLEN_SEND*MAX_FIBER_NB);
-	if (file_buf == NULL)
-	{
-		printf("error malloc");
-		return -1;
-	}
-	int nb_octets_per_socket = BUFLEN_SEND;
-	int nb_octets_per_block = nb_octets_per_socket*client_parameters.nb_sockets;
-	int nb_blocks_to_read = 1;
-	int nb_blocks_read_from_file = 0;
-	unsigned long long lengthOfFile;
-	if (!GetFileSizeEx(fh, &lengthOfFile)) {
-		/* Handle error */
-	}
-
+	_lseeki64(fh, 0, SEEK_SET);
 	printf("length of file (octets) %llu\n", lengthOfFile);
-
 	server_parameters.sizeof_file = lengthOfFile;
-
 	iResult = send(MasterClientSocket, (char*)&server_parameters, sizeof(server_parameters), 0);
-
 	printf("I have answered to client master channel !\n");
+	
+	
+
 
 	//Establishing connection with N clients
 
@@ -200,7 +195,7 @@ int __cdecl main(void)
 		ClientSockets[i] = accept(ListenSockets[i], NULL, NULL);
 		if (ClientSockets[i] == INVALID_SOCKET) {
 			printf("accept failed with error: %d\n", WSAGetLastError());
-			closesocket(ClientSockets[cnt_clients_sockets]);
+			closesocket(ClientSockets[i]);
 			WSACleanup();
 			return 1;
 		}
@@ -208,64 +203,87 @@ int __cdecl main(void)
 		printf("client num : %d\n", cnt_clients_sockets);
 	}
 
+	printf("BUFLEN_SEND %d \n", BUFLEN_SEND);
+	printf("BUFLEN_READ_DISK %d \n", BUFLEN_READ_DISK);
+
+	long long nb_blocks_read_from_file[MAX_FIBER_NB];
+	unsigned int nb_octets_per_read_disk[MAX_FIBER_NB];
+	int nb_octets_per_socket = BUFLEN_SEND;
+	//char file_buf[MAX_FIBER_NB];
+
+	for (i = 0; i < cnt_clients_sockets; i++)
+		nb_octets_per_read_disk[i] = BUFLEN_READ_DISK;
+
+	char **file_buf = {NULL};
+	if ((file_buf = malloc(MAX_FIBER_NB*sizeof(char*))) == NULL)
+	{ /* error */
+		printf("error malloc");
+		return -1;
+	}
+	for (i = 0; i < cnt_clients_sockets; i++)
+	{
+		if ((file_buf[i] = (char*) malloc(nb_octets_per_read_disk[i])) == NULL)
+		{ /* error */
+			printf("error malloc");
+			return -1;
+		}
+	}
+
 	difftime = before = starttime = time(NULL);
-	count = 0;
-	printf("sizeof filebuf %d cnt_clients_sockets %d \n", sizeof(file_buf), cnt_clients_sockets);
+	//printf("sizeof filebuf %d cnt_clients_sockets %d \n", sizeof(file_buf), cnt_clients_sockets);
 	// Receive until the file is read
 	//setvbuf(fh, NULL, _IONBF, 0); //disable buffering on disk
 	//printf("nb_octets_per_block %d \n", nb_octets_per_block);
-	//printf("nb_octets_per_socket %d \n", nb_octets_per_socket);
-	while (nbdatatotal<lengthOfFile && nb_octets_per_socket != 0 && cnt_clients_sockets > 0)
+	printf("nb_octets_per_read_disk %lu \n", nb_octets_per_read_disk[0]);
+	long long size_to_send[MAX_FIBER_NB];
+	while (nbdatatotal < lengthOfFile && cnt_clients_sockets > 0)
 	{
 		difftime = time(NULL) - before;
-		if ((lengthOfFile - nbdatatotal) <= nb_octets_per_socket)
-		{
-			//nb_octets_per_block = lengthOfFile - nbdatatotal;
-			nb_octets_per_socket = nb_octets_per_block / cnt_clients_sockets;
-			if (nb_octets_per_socket <= 0) nb_octets_per_socket = 1;
-		}
-		//read file per N blocks
-		//nb_blocks_read_from_file = 1;
-		if (fh != NULL) nb_blocks_read_from_file = fread(file_buf, nb_octets_per_socket, cnt_clients_sockets, fh);
-		if (nb_blocks_read_from_file == 0) {
-			printf("fail\n nb_octets_per_socket %d\n", nb_octets_per_socket);
-			printf(" lengthOfFile %ld\n", lengthOfFile);
-			printf(" nbdatatotal %ld\n", nbdatatotal);
-			printf(" nb_octets_per_block %ld\n", nb_octets_per_block);
-		}			
-		nbdatatotal += nb_blocks_read_from_file*nb_octets_per_socket;
-		nbdata += nb_blocks_read_from_file*nb_octets_per_socket;
-		//if (fh2!= NULL) fwrite(file_buf, nb_octets_per_socket*cnt_clients_sockets, nb_blocks_to_read, fh2);
 		//send data depending on nb sockets opened
-		/*for (i = 0; i < cnt_clients_sockets ; i++)
+		for (i = 0; i < cnt_clients_sockets ; i++)
 		{
-			//printf("client %d\n", i);	//printf("iResult %d\n", iResult);
-			iResult = send(ClientSockets[i], (const char *)&file_buf[i*nb_octets_per_socket], nb_octets_per_socket, 0);
-			if (iResult == SOCKET_ERROR)
-			{
-				printf("send failed with error: %d\n", WSAGetLastError());
-				closesocket(ClientSockets[i]);
-				WSACleanup();
-				return 1;
-			}		
-			//printf(" nbdatatotal %llu nboctets_per_block %d \n", nbdatatotal, nb_octets_per_block);
-			nbdatatotal += iResult;
-			nbdata += iResult;
-		}*/
-		if (difftime == 1)
+			if (fh != 0) nb_blocks_read_from_file[i] = _read(fh, file_buf[i], nb_octets_per_read_disk[i]);
+			size_to_send[i] = nb_blocks_read_from_file[i];
+			//size_to_send[i] = nb_octets_per_read_disk[i]; // for no read file purpose bench
+			//printf("size_to_send[client %d] %lli\n", i, size_to_send[i]);
+			iResult = -1;
+			nb_octets_per_socket = BUFLEN_SEND;
+			while (size_to_send[i] >= 0 && iResult != 0)
+			{	// for each socket
+				if (size_to_send[i] <= BUFLEN_SEND)
+					nb_octets_per_socket = size_to_send[i];
+				iResult = send(ClientSockets[i], (const char *) file_buf[i], nb_octets_per_socket, 0);
+				if (iResult == SOCKET_ERROR)
+				{
+					printf("send failed with error: %d\n", WSAGetLastError());
+					closesocket(ClientSockets[i]);
+					WSACleanup();
+					return 1;
+				}
+				//printf("size_to_send[client %d] %lli size_sent %d\n", i, size_to_send[i], iResult);
+				size_to_send[i] -= iResult;
+				//printf(" nbdatatotal %llu nboctets_per_block %d \n", nbdatatotal, nb_octets_per_block);
+				nbdatatotal += iResult;
+				nbdata += iResult;
+			} 
+		}
+		if (difftime >= 1)
 		{
-			wprintf(L"throughput %lf Mo/s datas sent %lf Mo \n", nbdata / (1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
+			wprintf(L"throughput %llf o/s data sent %llf o \n", nbdata / (1024 * 1024.0 * difftime), nbdatatotal / (1024 * 1024.0 * difftime));
 			before = time(NULL);
 			nbdata = 0;
 		}
 	} 
+	difftime = time(NULL) - starttime;
+	wprintf(L"final throughput %llf o/s data sent %llf o \n", nbdatatotal / (difftime * 1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
 
-	if (fclose(fh) != 0)
+
+	if (_close(fh) != 0)
 	{
 		printf("error closing file\n");
 	}
 
-	if (file_buf != NULL)
+	if (file_buf != NULL && (sizeof(file_buf) != 4 || sizeof(file_buf) != 8))
 		free(file_buf);
 	
 	/*if (fclose(fh2) != 0)

@@ -17,12 +17,13 @@
 #include <io.h>  
 #include <stdio.h>  
 #include <share.h>  
+#include <sys/timeb.h>
 
 // Need to link with Ws2_32.lib
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
 
-#define BUFLEN_READ_DISK 1024*1024*40 //IDEAL SIZE OF 40Mo on LabVIEW
+#define BUFLEN_READ_DISK 1024*1024*4 //IDEAL SIZE OF 40Mo on LabVIEW
 #define BUFLEN_SEND 65536//*100
 #define DEFAULT_PORT 1153
 #define MAX_FIBER_NB 4
@@ -31,6 +32,10 @@ int __cdecl main(void)
 {
 	long long nbdatatotal = 0, nbdata = 0, i=0, iResult=0;
 	time_t difftime = 0, previoustime = 0, starttime = 0, totaltime = 0, before = 0, endtime = 0;
+
+	struct timeb start, end;
+	float diff;
+
 	FILE* fh = 0;
 	if (fopen_s(&fh, "E:\\bench\\toto.tdms", "rb"))
 	{
@@ -81,6 +86,8 @@ int __cdecl main(void)
 	//printf("nb_octets_per_block %d \n", nb_octets_per_block);
 	printf("nb_octets_per_read_disk %lu \n", nb_octets_per_read_disk[0]);
 	long long size_to_send[MAX_FIBER_NB];
+
+	ftime(&start);
 	while (nbdatatotal < lengthOfFile && cnt_clients_sockets > 0)
 	{
 		difftime = time(NULL) - before;
@@ -101,7 +108,13 @@ int __cdecl main(void)
 			nbdata = 0;
 		}
 	}
+
+	ftime(&end);
 	difftime = time(NULL) - starttime;
+
+	/*diff = ((end.time - start.time) + ((time_t)end.millitm - (time_t)start.millitm));
+	printf("difftime : %lf", diff);*/
+
 	wprintf(L"final throughput %llf o/s data sent %llf o \n", nbdatatotal / (difftime * 1024 * 1024.0), nbdatatotal / (1024 * 1024.0));
 
 

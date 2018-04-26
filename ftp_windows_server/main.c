@@ -22,7 +22,7 @@
 #pragma comment (lib, "Ws2_32.lib")
 // #pragma comment (lib, "Mswsock.lib")
 
-#define BUFLEN_READ_DISK 1024*1024*2
+#define BUFLEN_READ_DISK 1024*1024*12 //IDEAL SIZE OF 40Mo on LabVIEW
 #define BUFLEN_SEND 65536//*100
 #define DEFAULT_PORT 1153
 #define MAX_FIBER_NB 4
@@ -59,6 +59,7 @@ int __cdecl main(void)
 		int nb_sockets;
 		int chunk_size;
 		long long sizeof_file;
+		long long file_block_size_read;
 		int record;
 		char file_path[1024];
 	};
@@ -133,7 +134,7 @@ int __cdecl main(void)
 	printf("Waiting for %d clients...\n", client_parameters.nb_sockets);
 
 	int fh = 0;
-	if (_sopen_s(&fh, client_parameters.file_path, _O_BINARY, _SH_DENYNO, 0))
+	if (_sopen_s(&fh, client_parameters.file_path, _O_BINARY, _SH_DENYWR, 0))
 	{
 		perror("error openning file0\n");
 		exit(1);
@@ -155,9 +156,11 @@ int __cdecl main(void)
 	_lseeki64(fh, 0, SEEK_SET);
 	printf("length of file (octets) %llu\n", lengthOfFile);
 	server_parameters.sizeof_file = lengthOfFile;
+	server_parameters.file_block_size_read = BUFLEN_READ_DISK;
 	iResult = send(MasterClientSocket, (char*)&server_parameters, sizeof(server_parameters), 0);
 	printf("I have answered to client master channel !\n");
-	
+
+	//setvbuf((FILE*)fh, NULL, _IONBF, 0); //disable buffering on disk
 	
 
 
@@ -212,7 +215,7 @@ int __cdecl main(void)
 	//char file_buf[MAX_FIBER_NB];
 
 	for (i = 0; i < cnt_clients_sockets; i++)
-		nb_octets_per_read_disk[i] = BUFLEN_READ_DISK;
+		nb_octets_per_read_disk[i] = BUFLEN_READ_DISK/cnt_clients_sockets;
 
 	char **file_buf = {NULL};
 	if ((file_buf = malloc(MAX_FIBER_NB*sizeof(char*))) == NULL)
@@ -232,7 +235,6 @@ int __cdecl main(void)
 	difftime = before = starttime = time(NULL);
 	//printf("sizeof filebuf %d cnt_clients_sockets %d \n", sizeof(file_buf), cnt_clients_sockets);
 	// Receive until the file is read
-	//setvbuf(fh, NULL, _IONBF, 0); //disable buffering on disk
 	//printf("nb_octets_per_block %d \n", nb_octets_per_block);
 	printf("nb_octets_per_read_disk %lu \n", nb_octets_per_read_disk[0]);
 	long long size_to_send[MAX_FIBER_NB];
@@ -246,6 +248,11 @@ int __cdecl main(void)
 			size_to_send[i] = nb_blocks_read_from_file[i];
 			//size_to_send[i] = nb_octets_per_read_disk[i]; // for no read file purpose bench
 			//printf("size_to_send[client %d] %lli\n", i, size_to_send[i]);
+			
+			
+			nbdatatotal += size_to_send[i];
+			nbdata += size_to_send[i];
+
 			iResult = -1;
 			nb_octets_per_socket = BUFLEN_SEND;
 			while (size_to_send[i] >= 0 && iResult != 0)
@@ -286,12 +293,6 @@ int __cdecl main(void)
 	if (file_buf != NULL && (sizeof(file_buf) != 4 || sizeof(file_buf) != 8))
 		free(file_buf);
 	
-	/*if (fclose(fh2) != 0)
-	{
-		printf("error closing file\n");
-		return -1;
-	}*/
-
 	printf("data sent : %llu\n", nbdatatotal);
 
 	for (i = 0; i < cnt_clients_sockets; i++)

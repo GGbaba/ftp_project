@@ -140,20 +140,19 @@ int __cdecl main(void)
 		exit(1);
 	}
 	/* Set the end of the file: */
-	int long long pos = _lseeki64(fh, 0L, SEEK_END);
-	if (pos == -1L)
+	long long lengthOfFile = _lseeki64(fh, 0L, SEEK_END);
+	if (lengthOfFile == -1L)
 		perror("_lseeki64 to end failed");
 	else
-		printf("Position for end of file seek = %lld\n", pos);
-	long long lengthOfFile = pos;
+		printf("Position for end of file seek = %lld\n", lengthOfFile);
+	long long tmp;
 	/* Seek the beginning of the file: */
-	pos = _lseek(fh, 0L, SEEK_SET);
-	if (pos == -1L)
+	tmp = _lseeki64(fh, 0L, SEEK_SET);
+	if (tmp == -1L)
 		perror("_lseek to beginning failed");
 	else
-		printf("Position for beginning of file seek = %ld\n", pos);
+		printf("Position for beginning of file seek = %ld\n", tmp);
 
-	_lseeki64(fh, 0, SEEK_SET);
 	printf("length of file (octets) %llu\n", lengthOfFile);
 	server_parameters.sizeof_file = lengthOfFile;
 	server_parameters.file_block_size_read = BUFLEN_READ_DISK;
@@ -162,8 +161,6 @@ int __cdecl main(void)
 
 	//setvbuf((FILE*)fh, NULL, _IONBF, 0); //disable buffering on disk
 	
-
-
 	//Establishing connection with N clients
 
 	int cnt_clients_sockets = 0;
